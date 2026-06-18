@@ -1,0 +1,29 @@
+# Nuxt
+.nuxt/
+.output/
+dist/
+
+# Node
+node_modules/
+
+# Environment
+.env
+!.env.example
+
+# Uploads
+public/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+
+# Prisma
+prisma/dev.db

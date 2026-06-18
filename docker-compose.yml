@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: emg_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-emg_system}
+      MYSQL_USER: ${MYSQL_USER:-emg_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-emg_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - emg_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - emg_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: emg_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://${MYSQL_USER:-emg_user}:${MYSQL_PASSWORD:-emg_password}@mysql:3306/${MYSQL_DATABASE:-emg_system}"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./public/uploads:/app/public/uploads
+    networks:
+      - emg_network
+
+volumes:
+  emg_mysql_data:
+
+networks:
+  emg_network:
+    driver: bridge

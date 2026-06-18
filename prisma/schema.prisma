@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ROLES & USERS ────────────────────────────────────────────────────────────
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(100)
+  email     String    @unique @db.VarChar(150)
+  password  String    @db.VarChar(255)
+  roleId    Int       @map("role_id")
+  active    Boolean   @default(true)
+  avatar    String?   @db.VarChar(255)
+  lastLogin DateTime? @map("last_login")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  role        Role       @relation(fields: [roleId], references: [id])
+  auditLogs   AuditLog[]
+  trainedModels TrainedModel[]
+
+  @@map("users")
+}
+
+// ─── SUBJECTS ─────────────────────────────────────────────────────────────────
+
+model Subject {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(100)
+  age            Int
+  sex            String   @db.VarChar(10)
+  amputationType String   @map("amputation_type") @db.VarChar(100)
+  observations   String?  @db.Text
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  datasets Dataset[]
+  trainedModels TrainedModel[]
+
+  @@map("subjects")
+}
+
+// ─── SENSORS ──────────────────────────────────────────────────────────────────
+
+model Sensor {
+  id               Int      @id @default(autoincrement())
+  name             String   @db.VarChar(100)
+  model            String   @db.VarChar(100)
+  manufacturer     String   @db.VarChar(100)
+  numChannels      Int      @map("num_channels")
+  samplingFrequency Float   @map("sampling_frequency")
+  status           String   @default("active") @db.VarChar(20)
+  description      String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  channels Channel[]
+
+  @@map("sensors")
+}
+
+model Channel {
+  id             Int      @id @default(autoincrement())
+  sensorId       Int      @map("sensor_id")
+  channelNumber  Int      @map("channel_number")
+  muscleLocation String   @map("muscle_location") @db.VarChar(100)
+  description    String?  @db.Text
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  sensor   Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  signals  Signal[]
+  features Feature[]
+
+  @@map("channels")
+}
+
+// ─── DATASETS ─────────────────────────────────────────────────────────────────
+
+model Dataset {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(150)
+  description String?  @db.Text
+  subjectId   Int?     @map("subject_id")
+  fileType    String   @map("file_type") @db.VarChar(10)
+  filePath    String   @map("file_path") @db.VarChar(500)
+  fileSize    BigInt   @map("file_size")
+  numSamples  Int?     @map("num_samples")
+  numChannels Int?     @map("num_channels")
+  validated   Boolean  @default(false)
+  metadata    Json?
+  uploadedAt  DateTime @default(now()) @map("uploaded_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subject Subject? @relation(fields: [subjectId], references: [id])
+  trainedModels TrainedModel[]
+
+  @@map("datasets")
+}
+
+// ─── SIGNALS ──────────────────────────────────────────────────────────────────
+
+model Signal {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  channelId   Int      @map("channel_id")
+  timestamp   DateTime @default(now())
+  amplitude   Float
+  frequency   Float?
+  sampleRate  Float?   @map("sample_rate")
+  rawData     Json?    @map("raw_data")
+  sessionId   String?  @map("session_id") @db.VarChar(36)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  channel  Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, timestamp])
+  @@index([sessionId])
+  @@map("signals")
+}
+
+// ─── FEATURES ─────────────────────────────────────────────────────────────────
+
+model Feature {
+  id        Int      @id @default(autoincrement())
+  channelId Int      @map("channel_id")
+  sessionId String?  @map("session_id") @db.VarChar(36)
+  windowStart DateTime @map("window_start")
+  windowEnd   DateTime @map("window_end")
+  mav       Float?
+  rms       Float?
+  wl        Float?
+  zc        Float?
+  ssc       Float?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([sessionId])
+  @@map("features")
+}
+
+// ─── TRAINED MODELS ───────────────────────────────────────────────────────────
+
+model TrainedModel {
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(150)
+  algorithm     String   @default("LDA") @db.VarChar(50)
+  subjectId     Int?     @map("subject_id")
+  datasetId     Int?     @map("dataset_id")
+  trainedBy     Int?     @map("trained_by")
+  numChannels   Int      @map("num_channels")
+  windowSize    Float    @map("window_size")
+  overlapSize   Float    @map("overlap_size")
+  accuracy      Float?
+  precision     Float?
+  recall        Float?
+  f1Score       Float?   @map("f1_score")
+  confusionMatrix Json?  @map("confusion_matrix")
+  modelPath     String?  @map("model_path") @db.VarChar(500)
+  status        String   @default("training") @db.VarChar(20)
+  trainDuration Float?   @map("train_duration")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  subject  Subject? @relation(fields: [subjectId], references: [id])
+  dataset  Dataset? @relation(fields: [datasetId], references: [id])
+  trainer  User?    @relation(fields: [trainedBy], references: [id])
+  classifications GestureClassification[]
+
+  @@map("trained_models")
+}
+
+// ─── GESTURES & CLASSIFICATIONS ───────────────────────────────────────────────
+
+model Gesture {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  code        String   @unique @db.VarChar(20)
+  description String?  @db.Text
+  iconName    String?  @map("icon_name") @db.VarChar(50)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  classifications GestureClassification[]
+  movements       Movement[]
+
+  @@map("gestures")
+}
+
+model GestureClassification {
+  id           Int      @id @default(autoincrement())
+  modelId      Int      @map("model_id")
+  gestureId    Int      @map("gesture_id")
+  sessionId    String?  @map("session_id") @db.VarChar(36)
+  confidence   Float
+  timestamp    DateTime @default(now())
+  featureVector Json?  @map("feature_vector")
+  isCorrect    Boolean? @map("is_correct")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  model   TrainedModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  gesture Gesture      @relation(fields: [gestureId], references: [id])
+
+  @@index([modelId, timestamp])
+  @@index([sessionId])
+  @@map("gesture_classifications")
+}
+
+// ─── PROSTHESIS ───────────────────────────────────────────────────────────────
+
+model Prosthesis {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(100)
+  serialNumber String?  @unique @map("serial_number") @db.VarChar(50)
+  type         String   @db.VarChar(50)
+  status       String   @default("disconnected") @db.VarChar(20)
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  port         Int?
+  lastSeen     DateTime? @map("last_seen")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  movements Movement[]
+
+  @@map("prostheses")
+}
+
+model Movement {
+  id          Int      @id @default(autoincrement())
+  prosthesisId Int     @map("prosthesis_id")
+  gestureId   Int?     @map("gesture_id")
+  command     String   @db.VarChar(50)
+  status      String   @default("pending") @db.VarChar(20)
+  latency     Float?
+  source      String   @default("manual") @db.VarChar(20)
+  sessionId   String?  @map("session_id") @db.VarChar(36)
+  metadata    Json?
+  executedAt  DateTime @default(now()) @map("executed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  prosthesis Prosthesis @relation(fields: [prosthesisId], references: [id], onDelete: Cascade)
+  gesture    Gesture?   @relation(fields: [gestureId], references: [id])
+
+  @@index([prosthesisId, executedAt])
+  @@map("movements")
+}
+
+// ─── AUDIT LOG ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  action    String   @db.VarChar(100)
+  module    String   @db.VarChar(50)
+  entityId  Int?     @map("entity_id")
+  details   Json?
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
