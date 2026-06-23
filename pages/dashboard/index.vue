@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-5">
 
-    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-white tracking-tight">Dashboard Biomédico</h1>
@@ -9,37 +9,22 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <!-- Status pills -->
+        <!-- Pills de estado -->
         <div class="hidden lg:flex items-center gap-2">
-          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border bg-teal-950/40 border-teal-900/50 text-teal-400">
-            <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-            <span>DB Online</span>
-          </div>
-          <div
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors"
-            :class="emgStore.isConnected
-              ? 'bg-teal-950/40 border-teal-900/50 text-teal-400'
-              : 'bg-gray-900 border-gray-800 text-gray-500'"
-          >
-            <span class="w-1.5 h-1.5 rounded-full" :class="emgStore.isConnected ? 'bg-teal-400 animate-pulse' : 'bg-gray-600'" />
+          <span class="pill-green">
+            <span class="dot animate-pulse bg-teal-400" /> DB Online
+          </span>
+          <span :class="emgStore.isConnected ? 'pill-green' : 'pill-gray'">
+            <span class="dot" :class="emgStore.isConnected ? 'bg-teal-400 animate-pulse' : 'bg-gray-600'" />
             <span class="font-mono">{{ emgStore.isConnected ? `${emgStore.latency}ms` : 'WS Offline' }}</span>
-          </div>
-          <div
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors"
-            :class="emgStore.isStreaming
-              ? 'bg-teal-950/40 border-teal-900/50 text-teal-400'
-              : 'bg-gray-900 border-gray-800 text-gray-500'"
-          >
-            <span class="w-1.5 h-1.5 rounded-full" :class="emgStore.isStreaming ? 'bg-teal-400 animate-pulse' : 'bg-gray-600'" />
-            <span>{{ emgStore.isStreaming ? 'EMG Activa' : 'EMG Inactiva' }}</span>
-          </div>
-          <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border bg-teal-950/40 border-teal-900/50 text-teal-400">
-            <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-            <span>1 Modelo LDA</span>
-          </div>
+          </span>
+          <span :class="emgStore.isStreaming ? 'pill-green' : 'pill-gray'">
+            <span class="dot" :class="emgStore.isStreaming ? 'bg-teal-400 animate-pulse' : 'bg-gray-600'" />
+            {{ emgStore.isStreaming ? 'EMG Activa' : 'EMG Inactiva' }}
+          </span>
         </div>
 
-        <!-- Session toggle -->
+        <!-- Botón de simulación -->
         <button
           class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border"
           :class="emgStore.isStreaming
@@ -48,61 +33,33 @@
           @click="toggleMock"
         >
           <span class="w-2 h-2 rounded-full" :class="emgStore.isStreaming ? 'bg-red-400 animate-pulse' : 'bg-gray-500'" />
-          {{ emgStore.isStreaming ? 'Detener simulacion' : 'Iniciar simulacion' }}
+          {{ emgStore.isStreaming ? 'Detener simulación' : 'Iniciar simulación' }}
         </button>
       </div>
     </div>
 
-    <!-- ── KPI Row 1 ─────────────────────────────────────────────────────── -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <StatsCard
-        label="Senales EMG"
-        :value="live.signals"
-        icon="i-heroicons-chart-bar-square"
-        color="teal"
-        :trend="12"
-        :sparkline="sparklines.signals"
-      />
-      <StatsCard
-        label="Precision Avg"
-        :value="live.accuracy"
-        unit="%"
-        icon="i-heroicons-check-badge"
-        color="green"
-        :trend="3"
-        :sparkline="sparklines.accuracy"
-      />
-      <StatsCard
-        label="Gestos Reconocidos"
-        :value="live.gestures"
-        icon="i-heroicons-hand-raised"
-        color="blue"
-        :trend="8"
-        :sparkline="sparklines.gestures"
-      />
-      <StatsCard
-        label="Modelos LDA"
-        :value="live.models"
-        icon="i-heroicons-cpu-chip"
-        color="purple"
-        :sparkline="sparklines.models"
-      />
+    <!-- ── KPIs ────────────────────────────────────────────────────────────── -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      <StatsCard label="Señales EMG"     :value="live.signals"  icon="i-heroicons-chart-bar-square" color="teal"   :trend="12" :sparkline="sparklines.signals"  class="col-span-2" />
+      <StatsCard label="Precisión Avg"   :value="live.accuracy" icon="i-heroicons-check-badge"      color="green"  :trend="3"  :sparkline="sparklines.accuracy" unit="%" class="col-span-2" />
+      <StatsCard label="Gestos"          :value="live.gestures" icon="i-heroicons-hand-raised"      color="blue"   :trend="8"  :sparkline="sparklines.gestures" class="col-span-2" />
+      <StatsCard label="F1 Score"        :value="live.f1"       icon="i-heroicons-star"             color="pink"   unit="%"                                      class="col-span-2" />
     </div>
 
-    <!-- ── KPI Row 2 ─────────────────────────────────────────────────────── -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <StatsCard label="Sujetos"   :value="live.subjects" icon="i-heroicons-user-group"  color="orange" badge="activos" />
-      <StatsCard label="Sensores"  :value="live.sensors"  icon="i-heroicons-signal"       color="teal"   badge="online"  />
-      <StatsCard label="F1 Score"  :value="live.f1"       icon="i-heroicons-star"          color="pink"   unit="%"       />
-      <StatsCard label="Usuarios"  :value="live.users"    icon="i-heroicons-users"         color="blue"   badge="activos"/>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <StatsCard label="Sujetos"  :value="live.subjects" icon="i-heroicons-user-group" color="orange" badge="activos" />
+      <StatsCard label="Sensores" :value="live.sensors"  icon="i-heroicons-signal"     color="teal"   badge="online"  />
+      <StatsCard label="Modelos LDA" :value="live.models" icon="i-heroicons-cpu-chip"  color="purple" :sparkline="sparklines.models" />
+      <StatsCard label="Usuarios" :value="live.users"    icon="i-heroicons-users"      color="blue"   badge="activos" />
     </div>
 
-    <!-- ── EMG Monitor + Gesture ──────────────────────────────────────────── -->
+    <!-- ── Monitor EMG + Gesto ────────────────────────────────────────────── -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-      <!-- Signal monitor (2/3) -->
+      <!-- Monitor (2/3) -->
       <div class="xl:col-span-2 bg-gray-900/80 border border-gray-800 rounded-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
+        <!-- Header del monitor -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-800/80">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-teal-950/80 flex items-center justify-center">
               <UIcon name="i-heroicons-chart-bar-square" class="w-4 h-4 text-teal-400" />
@@ -115,27 +72,27 @@
           <div class="flex items-center gap-3">
             <span class="font-mono text-xs text-gray-600">{{ emgStore.buffer.length }} frames</span>
             <span class="font-mono text-xs text-teal-400">{{ emgStore.latency }}ms</span>
-            <div v-if="emgStore.isStreaming" class="flex items-center gap-1.5 bg-teal-950/60 border border-teal-900/60 rounded-lg px-2.5 py-1 text-xs text-teal-400">
+            <span v-if="emgStore.isStreaming" class="flex items-center gap-1.5 bg-teal-950/60 border border-teal-900/60 rounded-lg px-2.5 py-1 text-xs text-teal-400">
               <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-              LIVE
-            </div>
+              EN VIVO
+            </span>
           </div>
         </div>
-
-        <div class="px-4 pb-4">
+        <!-- El monitor SVG reactivo -->
+        <div class="p-3">
           <SignalMonitor :is-active="emgStore.isStreaming" />
         </div>
       </div>
 
-      <!-- Gesture panel (1/3) -->
+      <!-- Panel de gesto (1/3) -->
       <div class="bg-gray-900/80 border border-gray-800 rounded-2xl overflow-hidden">
-        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-gray-800">
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-800/80">
           <div class="w-8 h-8 rounded-lg bg-blue-950/80 flex items-center justify-center">
             <UIcon name="i-heroicons-hand-raised" class="w-4 h-4 text-blue-400" />
           </div>
           <div>
             <h3 class="text-sm font-semibold text-white">Gesto Actual</h3>
-            <p class="text-xs text-gray-500">Clasificacion LDA en tiempo real</p>
+            <p class="text-xs text-gray-500">Clasificación LDA en tiempo real</p>
           </div>
         </div>
         <div class="p-4">
@@ -144,12 +101,12 @@
       </div>
     </div>
 
-    <!-- ── Charts Row ─────────────────────────────────────────────────────── -->
+    <!-- ── Gráficas ────────────────────────────────────────────────────────── -->
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-      <!-- Performance chart (3/5) -->
+      <!-- Rendimiento (3/5) -->
       <div class="lg:col-span-3 bg-gray-900/80 border border-gray-800 rounded-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-800/80">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-purple-950/80 flex items-center justify-center">
               <UIcon name="i-heroicons-chart-bar" class="w-4 h-4 text-purple-400" />
@@ -165,41 +122,41 @@
             >{{ tab.label }}</button>
           </div>
         </div>
-        <div class="p-4" style="height: 240px;">
+        <div class="px-4 pb-4 pt-2">
           <MultiLineChart
             v-if="activeTab === 'accuracy'"
             :datasets="accuracyDatasets"
             :labels="accuracyLabels"
-            :height="200" y-label="%" :y-min="70" :y-max="100"
+            :height="220" y-label="%" :y-min="70" :y-max="100"
           />
           <MultiLineChart
             v-else-if="activeTab === 'signals'"
             :datasets="signalBarDatasets"
             :labels="signalBarLabels"
-            :height="200" type="bar"
+            :height="220" type="bar"
           />
           <MultiLineChart
             v-else
             :datasets="modelCompareDatasets"
             :labels="modelCompareLabels"
-            :height="200" y-label="%" :y-min="60" :y-max="100"
+            :height="220" y-label="%" :y-min="60" :y-max="100"
           />
         </div>
       </div>
 
-      <!-- Gesture distribution (2/5) -->
+      <!-- Distribución de gestos (2/5) -->
       <div class="lg:col-span-2 bg-gray-900/80 border border-gray-800 rounded-2xl overflow-hidden">
-        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-gray-800">
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-800/80">
           <div class="w-8 h-8 rounded-lg bg-orange-950/80 flex items-center justify-center">
             <UIcon name="i-heroicons-chart-pie" class="w-4 h-4 text-orange-400" />
           </div>
-          <h3 class="text-sm font-semibold text-white">Distribucion de Gestos</h3>
+          <h3 class="text-sm font-semibold text-white">Distribución de Gestos</h3>
         </div>
-        <div class="p-4 space-y-2.5">
+        <div class="p-4 space-y-3">
           <div v-for="(g, i) in gestureDistrib" :key="g.label">
-            <div class="flex items-center justify-between text-xs mb-1.5">
+            <div class="flex items-center justify-between text-xs mb-1">
               <div class="flex items-center gap-2">
-                <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="{ background: distribColors[i] }" />
+                <div class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: distribColors[i] }" />
                 <span class="text-gray-400 truncate max-w-[130px]">{{ g.label }}</span>
               </div>
               <span class="font-mono text-gray-500 tabular-nums">{{ g.count }}</span>
@@ -219,16 +176,16 @@
       </div>
     </div>
 
-    <!-- ── Bottom Row ─────────────────────────────────────────────────────── -->
+    <!-- ── Fila inferior ───────────────────────────────────────────────────── -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      <!-- Prosthesis status -->
+      <!-- Prótesis conectadas -->
       <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-5">
         <div class="flex items-center gap-3 mb-4">
           <div class="w-8 h-8 rounded-lg bg-green-950/80 flex items-center justify-center">
             <UIcon name="i-heroicons-bolt" class="w-4 h-4 text-green-400" />
           </div>
-          <h3 class="text-sm font-semibold text-white">Protesis Conectadas</h3>
+          <h3 class="text-sm font-semibold text-white">Prótesis Conectadas</h3>
         </div>
         <div class="space-y-3">
           <div
@@ -238,8 +195,7 @@
           >
             <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               :class="p.active ? 'bg-green-900/50' : 'bg-gray-700/50'">
-              <UIcon name="i-heroicons-bolt" class="w-4 h-4"
-                :class="p.active ? 'text-green-400' : 'text-gray-500'" />
+              <UIcon name="i-heroicons-bolt" class="w-4 h-4" :class="p.active ? 'text-green-400' : 'text-gray-500'" />
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-white truncate">{{ p.name }}</p>
@@ -257,7 +213,7 @@
         </div>
       </div>
 
-      <!-- Activity feed -->
+      <!-- Feed de actividad -->
       <div class="lg:col-span-2 bg-gray-900/80 border border-gray-800 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
@@ -299,19 +255,12 @@
 import { useEMGStore } from '~/stores/emg'
 
 definePageMeta({ layout: 'default' })
-
 const emgStore = useEMGStore()
 
-// ── Live reactive counters ─────────────────────────────────────────────────────
+// ── Contadores live ────────────────────────────────────────────────────────────
 const live = reactive({
-  signals:  200,
-  accuracy: 94.5,
-  gestures: 0,
-  models:   1,
-  subjects: 3,
-  sensors:  2,
-  f1:       94.0,
-  users:    3,
+  signals:  200, accuracy: 94.5, gestures: 0, models: 1,
+  subjects: 3,   sensors: 2,     f1: 94.0,   users: 3,
 })
 
 const sparklines = reactive({
@@ -321,11 +270,11 @@ const sparklines = reactive({
   models:   [0, 0, 1, 1, 1, 1, 1],
 })
 
-// ── Charts ─────────────────────────────────────────────────────────────────────
+// ── Gráficas ───────────────────────────────────────────────────────────────────
 const chartTabs = [
-  { key: 'accuracy', label: 'Precision' },
-  { key: 'signals',  label: 'Senales' },
-  { key: 'models',   label: 'Modelos' },
+  { key: 'accuracy', label: 'Precisión' },
+  { key: 'signals',  label: 'Señales'   },
+  { key: 'models',   label: 'Modelos'   },
 ]
 const activeTab = ref('accuracy')
 
@@ -335,69 +284,64 @@ const accuracyDatasets = ref([
   { label: 'F1 Score', data: [80, 83, 86, 88, 90, 93.8], color: '#8b5cf6' },
 ])
 
-const signalBarLabels   = ref(['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'])
+const signalBarLabels   = ref(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'])
 const signalBarDatasets = ref([
-  { label: 'Senales/dia', data: [28, 34, 42, 51, 38, 29, 22], color: '#3b82f6' },
+  { label: 'Señales/día', data: [28, 34, 42, 51, 38, 29, 22], color: '#3b82f6' },
 ])
 
 const modelCompareLabels   = ['LDA-1', 'LDA-2', 'LDA-3']
 const modelCompareDatasets = [
   { label: 'Accuracy',  data: [94.5, 91.2, 88.0], color: '#14b8a6' },
-  { label: 'Precision', data: [93.8, 90.5, 87.3], color: '#3b82f6' },
+  { label: 'Precisión', data: [93.8, 90.5, 87.3], color: '#3b82f6' },
   { label: 'Recall',    data: [94.2, 91.0, 87.8], color: '#8b5cf6' },
   { label: 'F1',        data: [93.8, 90.2, 87.5], color: '#f59e0b' },
 ]
 
-// ── Gesture distribution ───────────────────────────────────────────────────────
+// ── Distribución de gestos ─────────────────────────────────────────────────────
 const gestureDistrib = reactive([
   { label: 'Mano Abierta',        count: 22 },
   { label: 'Mano Cerrada',        count: 20 },
-  { label: 'Agarre Cilindrico',   count: 18 },
+  { label: 'Agarre Cilíndrico',   count: 18 },
   { label: 'Pinza Fina',          count: 15 },
-  { label: 'Flexion de Muneca',   count: 13 },
-  { label: 'Extension de Muneca', count: 12 },
+  { label: 'Flexión de Muñeca',   count: 13 },
+  { label: 'Extensión de Muñeca', count: 12 },
 ])
 const distribColors = ['#14b8a6','#3b82f6','#8b5cf6','#f59e0b','#10b981','#ec4899']
 const maxDistrib    = computed(() => Math.max(...gestureDistrib.map(g => g.count)))
 
-// ── Prosthesis ─────────────────────────────────────────────────────────────────
+// ── Prótesis ───────────────────────────────────────────────────────────────────
 const prosthesisList = reactive([
   { name: 'Vincent Hand v3', active: true,  battery: 87 },
   { name: 'i-Limb Quantum',  active: false, battery: 0  },
 ])
 
-// ── Activity feed ──────────────────────────────────────────────────────────────
-interface FeedEntry {
-  id: number; user: string; text: string; time: string
-  icon: string; bg: string; color: string
-}
+// ── Feed de actividad ──────────────────────────────────────────────────────────
+interface FeedEntry { id: number; user: string; text: string; time: string; icon: string; bg: string; color: string }
 const activityFeed = ref<FeedEntry[]>([
-  { id: 1, user: 'Sistema',      text: 'Migracion DB completada correctamente',     time: '08:12', icon: 'i-heroicons-circle-stack',             bg: 'bg-teal-950/60',   color: 'text-teal-400'   },
-  { id: 2, user: 'Admin',        text: 'Inicio sesion desde 127.0.0.1',             time: '08:15', icon: 'i-heroicons-arrow-right-on-rectangle', bg: 'bg-green-950/60',  color: 'text-green-400'  },
-  { id: 3, user: 'Investigador', text: 'Creo dataset NinaPro DB5 sujeto S1',        time: '08:18', icon: 'i-heroicons-plus-circle',              bg: 'bg-blue-950/60',   color: 'text-blue-400'   },
+  { id: 1, user: 'Sistema',       text: 'Migración DB completada correctamente',      time: '08:12', icon: 'i-heroicons-circle-stack',             bg: 'bg-teal-950/60',   color: 'text-teal-400'   },
+  { id: 2, user: 'Admin',         text: 'Inicio sesión desde 127.0.0.1',              time: '08:15', icon: 'i-heroicons-arrow-right-on-rectangle', bg: 'bg-green-950/60',  color: 'text-green-400'  },
+  { id: 3, user: 'Investigador',  text: 'Creó dataset NinaPro DB5 sujeto S1',         time: '08:18', icon: 'i-heroicons-plus-circle',              bg: 'bg-blue-950/60',   color: 'text-blue-400'   },
 ])
 let feedId = 10
 
 const FEED_TEMPLATES = [
-  { user: 'Sistema',      text: (g: string) => `Gesto "${g}" clasificado`,                   icon: 'i-heroicons-hand-raised',             bg: 'bg-blue-950/60',   color: 'text-blue-400'   },
-  { user: 'Sistema',      text: () => 'Senal adquirida · 8 canales · 50ms',                  icon: 'i-heroicons-chart-bar-square',         bg: 'bg-teal-950/60',   color: 'text-teal-400'   },
-  { user: 'LDA-1',        text: () => 'Extraccion MAV/RMS completada · 8 canales',           icon: 'i-heroicons-cpu-chip',                 bg: 'bg-purple-950/60', color: 'text-purple-400' },
-  { user: 'Vincent Hand', text: (g: string) => `Movimiento ejecutado · ${g}`,               icon: 'i-heroicons-bolt',                     bg: 'bg-green-950/60',  color: 'text-green-400'  },
-  { user: 'Sistema',      text: () => 'Ventana deslizante procesada · 256 muestras',         icon: 'i-heroicons-variable',                 bg: 'bg-yellow-950/60', color: 'text-yellow-400' },
-  { user: 'Modelo LDA-1', text: () => 'Accuracy validada · 94.5%',                          icon: 'i-heroicons-check-badge',              bg: 'bg-green-950/60',  color: 'text-green-400'  },
+  { user: 'Sistema',       text: (g: string) => `Gesto "${g}" clasificado`,               icon: 'i-heroicons-hand-raised',      bg: 'bg-blue-950/60',   color: 'text-blue-400'   },
+  { user: 'Sistema',       text: () => 'Señal adquirida · 8 canales · 50ms',              icon: 'i-heroicons-chart-bar-square', bg: 'bg-teal-950/60',   color: 'text-teal-400'   },
+  { user: 'LDA-1',         text: () => 'Extracción MAV/RMS completada · 8 canales',       icon: 'i-heroicons-cpu-chip',         bg: 'bg-purple-950/60', color: 'text-purple-400' },
+  { user: 'Vincent Hand',  text: (g: string) => `Movimiento ejecutado · ${g}`,            icon: 'i-heroicons-bolt',             bg: 'bg-green-950/60',  color: 'text-green-400'  },
+  { user: 'Sistema',       text: () => 'Ventana deslizante procesada · 256 muestras',     icon: 'i-heroicons-variable',         bg: 'bg-yellow-950/60', color: 'text-yellow-400' },
+  { user: 'Modelo LDA-1',  text: () => 'Accuracy validada · 94.5%',                      icon: 'i-heroicons-check-badge',      bg: 'bg-green-950/60',  color: 'text-green-400'  },
 ]
 
-function pushFeedEntry(gestureName = 'Mano Abierta') {
+function pushFeed(gestureName = 'Mano Abierta') {
   const tpl  = FEED_TEMPLATES[Math.floor(Math.random() * FEED_TEMPLATES.length)]
   const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   activityFeed.value.unshift({ id: ++feedId, user: tpl.user, text: tpl.text(gestureName), time, icon: tpl.icon, bg: tpl.bg, color: tpl.color })
   if (activityFeed.value.length > 20) activityFeed.value.pop()
 }
 
-// ── Mock update timers ─────────────────────────────────────────────────────────
-const today = new Date().toLocaleDateString('es-MX', {
-  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-})
+// ── Timers ─────────────────────────────────────────────────────────────────────
+const today = new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
 let statsTimer: ReturnType<typeof setInterval> | null = null
 let feedHandle: ReturnType<typeof setTimeout>  | null = null
@@ -408,18 +352,14 @@ function startUpdates() {
     live.accuracy  = parseFloat((94.5 + (Math.random() - 0.5) * 0.6).toFixed(1))
     live.f1        = parseFloat((94.0 + (Math.random() - 0.5) * 0.5).toFixed(1))
     if (Math.random() < 0.08) prosthesisList[0].battery = Math.max(80, prosthesisList[0].battery - 1)
-
-    sparklines.signals.push(live.signals)
-    sparklines.signals.shift()
-    sparklines.accuracy.push(live.accuracy)
-    sparklines.accuracy.shift()
-
+    sparklines.signals.push(live.signals);  sparklines.signals.shift()
+    sparklines.accuracy.push(live.accuracy); sparklines.accuracy.shift()
     signalBarDatasets.value[0].data[6] = Math.round(live.signals / 8)
   }, 800)
 
   const scheduleFeed = () => {
     feedHandle = setTimeout(() => {
-      pushFeedEntry(emgStore.currentGesture?.gesture.name ?? 'Mano Abierta')
+      pushFeed(emgStore.currentGesture?.gesture.name ?? 'Mano Abierta')
       scheduleFeed()
     }, 4000 + Math.random() * 4000)
   }
@@ -431,39 +371,28 @@ function stopUpdates() {
   if (feedHandle) { clearTimeout(feedHandle);  feedHandle = null }
 }
 
-// When gesture changes: update distribution + counter + sparkline
 watch(() => emgStore.currentGesture, (g) => {
   if (!g) return
   live.gestures++
-  sparklines.gestures.push(live.gestures)
-  sparklines.gestures.shift()
+  sparklines.gestures.push(live.gestures); sparklines.gestures.shift()
   const slot = gestureDistrib.find(d => d.label === g.gesture.name)
   if (slot) slot.count++
 })
 
-// ── Toggle ─────────────────────────────────────────────────────────────────────
 function toggleMock() {
-  if (emgStore.isStreaming) {
-    emgStore.stopMockSimulation()
-    stopUpdates()
-  } else {
-    emgStore.startMockSimulation()
-    startUpdates()
-  }
+  if (emgStore.isStreaming) { emgStore.stopMockSimulation(); stopUpdates() }
+  else                      { emgStore.startMockSimulation(); startUpdates() }
 }
 
-onMounted(() => {
-  emgStore.startMockSimulation()
-  startUpdates()
-})
-
-onUnmounted(() => {
-  emgStore.stopMockSimulation()
-  stopUpdates()
-})
+onMounted(() => { emgStore.startMockSimulation(); startUpdates() })
+onUnmounted(() => { emgStore.stopMockSimulation(); stopUpdates() })
 </script>
 
 <style scoped>
+.pill-green { @apply flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border bg-teal-950/40 border-teal-900/50 text-teal-400; }
+.pill-gray  { @apply flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border bg-gray-900 border-gray-800 text-gray-500; }
+.dot        { @apply w-1.5 h-1.5 rounded-full; }
+
 .feed-enter-active { transition: all 0.3s ease; }
 .feed-enter-from   { opacity: 0; transform: translateY(-6px); }
 .feed-leave-active { transition: all 0.2s ease; position: absolute; }

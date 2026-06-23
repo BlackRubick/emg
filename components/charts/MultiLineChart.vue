@@ -108,7 +108,14 @@ function buildChart() {
   })
 }
 
-onMounted(() => buildChart())
+// canvasRef vive dentro de <ClientOnly>; solo se asigna DESPUÉS de que ClientOnly
+// renderiza su slot real. watch() con immediate:true lo detecta en cuanto esté listo.
+watch(canvasRef, (el) => {
+  if (!el) return
+  chart?.destroy()
+  chart = null
+  buildChart()
+}, { immediate: true })
 
 watch([() => props.datasets, () => props.labels], () => {
   if (!chart) return

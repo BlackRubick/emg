@@ -1,184 +1,121 @@
 <template>
-  <ClientOnly>
-    <div
-      ref="wrapRef"
-      class="relative w-full rounded-xl border border-gray-700/60 overflow-hidden"
-      style="height: 320px; background: #07111f;"
-    >
-      <canvas ref="canvasRef" style="display:block; width:100%; height:100%;" />
+  <div class="relative w-full overflow-hidden rounded-xl border border-gray-700/40" style="background:#060e1a;">
 
-      <!-- Paused overlay -->
-      <div
-        v-if="!isActive"
-        class="absolute inset-0 flex flex-col items-center justify-center gap-3"
-        style="background: rgba(7,17,31,0.85);"
-      >
-        <UIcon name="i-heroicons-signal-slash" class="w-10 h-10 text-gray-600" />
-        <p class="text-sm text-gray-500">Inicia la simulacion para ver la senal EMG</p>
+    <!-- SVG de señales (viewBox fijo, se estira para llenar) -->
+    <svg
+      class="w-full"
+      style="height:300px; display:block;"
+      viewBox="0 0 820 300"
+      preserveAspectRatio="none"
+    >
+      <!-- Grid vertical sutil -->
+      <line v-for="t in [1,2,3,4]" :key="t"
+        :x1="LX + (t/5)*PW" y1="0"
+        :x2="LX + (t/5)*PW" y2="300"
+        stroke="rgba(255,255,255,0.04)" stroke-width="1"
+      />
+
+      <g v-for="i in 8" :key="i">
+        <!-- Separador de fila -->
+        <line x1="0" :y1="(i-1)*RH" x2="820" :y2="(i-1)*RH" stroke="#1a2d45" stroke-width="1"/>
+        <!-- Fondo alterno -->
+        <rect v-if="i%2===0" :x="LX" :y="(i-1)*RH" :width="PW" :height="RH" fill="rgba(255,255,255,0.012)"/>
+        <!-- Línea base punteada -->
+        <line :x1="LX" :y1="(i-1)*RH + RH/2" :x2="820" :y2="(i-1)*RH + RH/2"
+          :stroke="COLORS[i-1]+'25'" stroke-width="1" stroke-dasharray="3,7"
+        />
+        <!-- Señal: brillo ancho -->
+        <path v-if="paths[i-1]" :d="paths[i-1]"
+          :stroke="COLORS[i-1]+'44'" stroke-width="5" fill="none"
+          stroke-linecap="round" stroke-linejoin="round"
+        />
+        <!-- Señal: línea nítida -->
+        <path v-if="paths[i-1]" :d="paths[i-1]"
+          :stroke="COLORS[i-1]" stroke-width="1.4" fill="none"
+          stroke-linecap="round" stroke-linejoin="round"
+        />
+      </g>
+    </svg>
+
+    <!-- Etiquetas de canal (HTML, no se distorsionan) -->
+    <div class="absolute inset-0 flex flex-col pointer-events-none" style="height:300px;">
+      <div v-for="(muscle, i) in MUSCLES" :key="i" class="flex-1 flex items-center pl-2">
+        <div class="w-14 flex-shrink-0">
+          <p class="text-[10px] font-bold font-mono leading-none" :style="{ color: COLORS[i] }">CH{{ i+1 }}</p>
+          <p class="text-[7px] text-gray-600 font-mono mt-0.5 truncate">{{ muscle }}</p>
+        </div>
       </div>
     </div>
 
-    <!-- fallback while client JS loads -->
-    <template #fallback>
-      <div class="w-full rounded-xl border border-gray-700/60 flex items-center justify-center" style="height:320px; background:#07111f;">
-        <p class="text-xs text-gray-600">Cargando monitor...</p>
+    <!-- Lecturas µV en vivo (derecha) -->
+    <div class="absolute right-1 top-0 flex flex-col pointer-events-none" style="height:300px;">
+      <div v-for="(val, i) in lastAmps" :key="i" class="flex-1 flex items-center">
+        <span class="text-[9px] font-bold font-mono tabular-nums" :style="{ color: COLORS[i]+'bb' }">
+          {{ val >= 0 ? '+' : '' }}{{ val.toFixed(0) }}
+        </span>
       </div>
-    </template>
-  </ClientOnly>
+    </div>
+
+    <!-- Overlay cuando está inactivo -->
+    <Transition name="fade">
+      <div v-if="!isActive"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3"
+        style="background:rgba(6,14,26,0.88); height:300px;"
+      >
+        <UIcon name="i-heroicons-signal-slash" class="w-10 h-10 text-gray-700" />
+        <p class="text-sm text-gray-500">Inicia la simulación para ver la señal EMG</p>
+      </div>
+    </Transition>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { useEMGStore } from '~/stores/emg'
 
-const props    = defineProps<{ isActive: boolean }>()
+defineProps<{ isActive: boolean }>()
+
 const emgStore = useEMGStore()
 
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-const wrapRef   = ref<HTMLDivElement | null>(null)
+const COLORS  = ['#2dd4bf','#60a5fa','#a78bfa','#fbbf24','#34d399','#f472b6','#fb923c','#818cf8']
+const MUSCLES = ['Flex.Carpi.R','Flex.Dig','Ext.Carpi.R','Ext.Dig','Biceps','Triceps','Pronator','Supinator']
 
-let rafId: number | null = null
-let ro: ResizeObserver | null = null
-let cw = 0
-let ch = 0
+// Coordenadas fijas del viewBox
+const LX = 70   // inicio del área de señal
+const PW = 748  // ancho del área de señal (820 - 70 - 2)
+const RH = 37.5 // alto de cada fila (300 / 8)
+const N  = 150  // frames a mostrar
 
-const N      = 150
-const COLORS = ['#2dd4bf', '#60a5fa', '#a78bfa', '#fbbf24', '#34d399', '#f472b6', '#fb923c', '#818cf8']
-const MUSCLE = ['Flex.Carpi.R', 'Flex.Dig', 'Ext.Carpi.R', 'Ext.Dig', 'Biceps', 'Triceps', 'Pronator', 'Supinator']
+// Rutas SVG — se recalculan cada vez que cambia el buffer (reactivo Pinia)
+const paths = computed(() => {
+  const fs = emgStore.buffer.slice(-N)
+  if (fs.length < 2) return Array(8).fill('')
+  const len = fs.length
+  const ampSc = (RH / 2) * 0.8
 
-function syncSize() {
-  const canvas = canvasRef.value
-  const wrap   = wrapRef.value
-  if (!canvas || !wrap || wrap.clientWidth === 0) return
-  const w = wrap.clientWidth
-  const h = wrap.clientHeight
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width  = w
-    canvas.height = h
-    cw = w
-    ch = h
-  }
-}
-
-function draw() {
-  const canvas = canvasRef.value
-  if (!canvas || canvas.width === 0 || canvas.height === 0) return
-  const ctx = canvas.getContext('2d')!
-  const W = canvas.width
-  const H = canvas.height
-
-  ctx.fillStyle = '#07111f'
-  ctx.fillRect(0, 0, W, H)
-
-  const LW     = 58    // label column width
-  const plotW  = W - LW - 2
-  const rowH   = H / 8
-
-  // Vertical time-grid lines (subtle)
-  ctx.strokeStyle = '#ffffff08'
-  ctx.lineWidth   = 1
-  for (let t = 1; t < 5; t++) {
-    const x = LW + (t / 5) * plotW
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
-  }
-
-  const frames = emgStore.buffer.slice(-N)
-
-  for (let i = 0; i < 8; i++) {
-    const top   = i * rowH
-    const cy    = top + rowH / 2
-    const color = COLORS[i]
-
-    // Row background (alternating slightly)
-    if (i % 2 === 1) {
-      ctx.fillStyle = '#ffffff03'
-      ctx.fillRect(LW, top, plotW, rowH)
+  return Array.from({ length: 8 }, (_, i) => {
+    const cy = i * RH + RH / 2
+    let d = ''
+    for (let idx = 0; idx < len; idx++) {
+      const amp = (fs[idx] as any).channels?.find((c: any) => c.channel === i + 1)?.amplitude ?? 0
+      const x = LX + (idx / (len - 1)) * PW
+      const y = cy - (amp / 80) * ampSc
+      d += `${idx === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `
     }
+    return d
+  })
+})
 
-    // Row separator
-    ctx.strokeStyle = '#1e3050'
-    ctx.lineWidth   = 1
-    ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(W, top); ctx.stroke()
-
-    // Baseline dashed
-    ctx.strokeStyle = color + '30'
-    ctx.lineWidth   = 1
-    ctx.setLineDash([3, 6])
-    ctx.beginPath(); ctx.moveTo(LW, cy); ctx.lineTo(W - 2, cy); ctx.stroke()
-    ctx.setLineDash([])
-
-    // Channel label
-    ctx.fillStyle = color
-    ctx.font      = 'bold 11px ui-monospace,monospace'
-    ctx.textAlign = 'right'
-    ctx.fillText(`CH${i + 1}`, LW - 6, cy - 2)
-    ctx.fillStyle = '#4b5563'
-    ctx.font      = '8px ui-monospace,monospace'
-    ctx.fillText(MUSCLE[i], LW - 6, cy + 10)
-
-    if (frames.length < 2) continue
-
-    // Clip to row plot area
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(LW, top + 1, plotW, rowH - 2)
-    ctx.clip()
-
-    // Glow (two passes: wide soft + narrow bright)
-    const ampScale = (rowH / 2) * 0.78
-
-    const drawLine = (lw: number, blur: number, alpha: string) => {
-      ctx.strokeStyle = color + alpha
-      ctx.lineWidth   = lw
-      ctx.lineJoin    = 'round'
-      ctx.shadowColor = color
-      ctx.shadowBlur  = blur
-      ctx.beginPath()
-      frames.forEach((frame, idx) => {
-        const amp = (frame as any).channels?.find((c: any) => c.channel === i + 1)?.amplitude ?? 0
-        const x   = LW + (idx / (N - 1)) * plotW
-        const y   = cy - (amp / 80) * ampScale
-        idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-      })
-      ctx.stroke()
-      ctx.shadowBlur = 0
-    }
-
-    drawLine(4, 12, '33')   // wide glow
-    drawLine(2, 6,  'cc')   // medium
-    drawLine(1.5, 0, 'ff')  // crisp top
-
-    ctx.restore()
-
-    // Live µV readout
-    const last = (frames.at(-1) as any)?.channels?.find((c: any) => c.channel === i + 1)?.amplitude ?? 0
-    ctx.fillStyle = color + 'cc'
-    ctx.font      = 'bold 10px ui-monospace,monospace'
-    ctx.textAlign = 'right'
-    ctx.fillText(`${last >= 0 ? '+' : ''}${last.toFixed(0)}`, W - 2, cy + 4)
-  }
-}
-
-function loop() {
-  syncSize()
-  draw()
-  rafId = requestAnimationFrame(loop)
-}
-
-watch(wrapRef, (el) => {
-  if (!el) return
-  ro?.disconnect()
-  ro = new ResizeObserver(() => syncSize())
-  ro.observe(el)
-  if (!rafId) {
-    nextTick(() => {
-      syncSize()
-      loop()
-    })
-  }
-}, { immediate: true })
-
-onUnmounted(() => {
-  if (rafId) cancelAnimationFrame(rafId)
-  ro?.disconnect()
+// Última amplitud por canal
+const lastAmps = computed(() => {
+  const last = emgStore.buffer.at(-1) as any
+  if (!last) return Array(8).fill(0)
+  return Array.from({ length: 8 }, (_, i) =>
+    last.channels?.find((c: any) => c.channel === i + 1)?.amplitude ?? 0
+  )
 })
 </script>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.35s ease; }
+.fade-enter-from, .fade-leave-to       { opacity: 0; }
+</style>
