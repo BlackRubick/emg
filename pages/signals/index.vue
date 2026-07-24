@@ -24,6 +24,13 @@
             <div class="w-2 h-2 rounded-full" :class="emgStore.isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'"></div>
             <span class="text-sm text-gray-300">{{ emgStore.isConnected ? 'WebSocket Conectado' : 'Desconectado' }}</span>
           </div>
+          <UBadge v-if="emgStore.esp32Connected" color="teal" variant="soft" size="xs">
+            <span class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+              Hardware ESP32
+            </span>
+          </UBadge>
+          <UBadge v-else color="gray" variant="soft" size="xs">Simulación</UBadge>
           <div class="text-xs text-gray-500">Latencia: {{ emgStore.latency }}ms</div>
           <div v-if="emgStore.sessionId" class="text-xs text-gray-500 font-mono">Sesión: {{ emgStore.sessionId?.slice(0, 8) }}...</div>
         </div>
@@ -51,6 +58,30 @@
         <EMGSignalChart :channel-index="i - 1" :height="80" :color="channelColors[i - 1]" :realtime="true" />
         <div class="mt-1 text-xs text-gray-600 truncate">{{ muscleLabels[i - 1] }}</div>
       </div>
+    </div>
+
+    <!-- Calibración EMG — solo visible con ESP32 conectado -->
+    <div v-if="emgStore.esp32Connected" class="bg-gray-900 border border-teal-900/50 rounded-xl p-5">
+      <h3 class="text-sm font-semibold text-gray-300 mb-4">Calibración de Umbral EMG</h3>
+      <div class="flex items-center gap-4">
+        <div class="flex-1">
+          <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <span>Sensibilidad baja (50)</span>
+            <span class="text-teal-400 font-mono">Umbral: {{ threshold }}</span>
+            <span>Alta (400)</span>
+          </div>
+          <input
+            v-model.number="threshold"
+            type="range" min="50" max="400" step="10"
+            class="w-full accent-teal-500"
+            @change="sendThreshold"
+          />
+        </div>
+        <UButton size="sm" color="teal" variant="soft" @click="sendThreshold">Aplicar</UButton>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">
+        Sube el umbral si el brazo se mueve solo sin contracción. Bájalo si no detecta tus pulsos.
+      </p>
     </div>
 
     <!-- Historical Signals Table -->
@@ -124,6 +155,13 @@ const signalColumns = [
   { key: 'timestamp', label: 'Marca de Tiempo' },
   { key: 'sessionId', label: 'Sesión' },
 ]
+
+const threshold = ref(150)
+
+const sendThreshold = () => {
+  emgStore.ws?.send(JSON.stringify({ type: 'set_threshold', value: threshold.value }))
+  toast.add({ title: `Umbral actualizado: ${threshold.value}`, color: 'teal' })
+}
 
 const toggleStream = () => {
   if (!emgStore.isConnected) emgStore.connect()

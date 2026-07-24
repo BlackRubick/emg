@@ -58,6 +58,8 @@ export const useEMGStore = defineStore('emg', {
     currentGesture: null as GestureResult | null,
     ws:           null as WebSocket | null,
     latency:      0,
+    esp32Connected: false,
+    dataSource:   'mock' as 'mock' | 'esp32',
   }),
 
   getters: {
@@ -77,11 +79,15 @@ export const useEMGStore = defineStore('emg', {
       this.ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
         if (data.type === 'emg_signal') {
+          if (data.source === 'esp32') this.dataSource = 'esp32'
           this.lastFrame = data
           this.buffer.push(data)
           if (this.buffer.length > this.maxBufferSize) this.buffer.shift()
         } else if (data.type === 'pong') {
           this.latency = Date.now() - data.timestamp
+        } else if (data.type === 'esp32_status') {
+          this.esp32Connected = data.connected
+          if (!data.connected) this.dataSource = 'mock'
         }
       }
       this.ws.onclose = () => { this.isConnected = false; this.isStreaming = false }

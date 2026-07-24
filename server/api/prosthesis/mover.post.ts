@@ -43,5 +43,9 @@ export default defineEventHandler(async (event) => {
 
   await logAudit(event, { userId: auth.userId, action: 'MOVE', module: 'prosthesis', entityId: result.data.prosthesisId, details: { command: result.data.command } })
 
-  return successResponse(movement, 'Command sent')
+  // Forward command to physical ESP32 if connected
+  const nitroApp = useNitroApp()
+  ;(nitroApp as any).sendToESP32?.({ type: 'command', gesture: result.data.command })
+
+  return successResponse({ ...movement, esp32Sent: (nitroApp as any).isESP32Connected?.() ?? false }, 'Command sent')
 })

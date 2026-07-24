@@ -5,12 +5,20 @@
         <h2 class="text-xl font-bold text-white">Control de Prótesis</h2>
         <p class="text-sm text-gray-400 mt-0.5">Panel de control de mano protésica en tiempo real</p>
       </div>
-      <UBadge v-if="prosthesis" :color="prosthesis.status === 'active' ? 'green' : 'red'" variant="soft">
-        <span class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full" :class="prosthesis.status === 'active' ? 'bg-green-400 animate-pulse' : 'bg-red-400'"></span>
-          {{ prosthesis.status }}
-        </span>
-      </UBadge>
+      <div class="flex items-center gap-2">
+        <UBadge :color="emgStore.esp32Connected ? 'teal' : 'gray'" variant="soft">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full" :class="emgStore.esp32Connected ? 'bg-teal-400 animate-pulse' : 'bg-gray-500'"></span>
+            {{ emgStore.esp32Connected ? 'ESP32 Conectado' : 'ESP32 Sin Conexión' }}
+          </span>
+        </UBadge>
+        <UBadge v-if="prosthesis" :color="prosthesis.status === 'active' ? 'green' : 'red'" variant="soft">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full" :class="prosthesis.status === 'active' ? 'bg-green-400 animate-pulse' : 'bg-red-400'"></span>
+            {{ prosthesis.status }}
+          </span>
+        </UBadge>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -120,8 +128,14 @@
 </template>
 
 <script setup lang="ts">
+import { useEMGStore } from '~/stores/emg'
+
 definePageMeta({ layout: 'default' })
 const toast = useToast()
+const emgStore = useEMGStore()
+
+onMounted(() => emgStore.connect())
+onUnmounted(() => emgStore.disconnect())
 
 const { data: statusData, refresh } = await useFetch('/api/prosthesis/estado')
 const prostheses = computed(() => (statusData.value as any)?.data || [])
