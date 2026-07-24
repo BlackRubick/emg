@@ -17,7 +17,7 @@
           {{ emgStore.esp32Connected ? '250 Hz' : 'Sin señal' }}
         </span>
         <span class="badge-off font-mono text-xs">
-          Latencia: {{ emgStore.latency }}ms
+          {{ frameCount }} frames
         </span>
       </div>
     </div>
@@ -52,7 +52,6 @@
               <span class="w-3 h-0.5 rounded" :style="{ background: c.color }"></span>
               <span class="text-gray-500">{{ c.label }}</span>
             </span>
-            <span class="text-gray-700 font-mono">{{ emgStore.buffer.length }} frames</span>
           </div>
         </div>
         <!-- Canvas osciloscópio -->
@@ -246,6 +245,7 @@ const POSES: Record<string, { thumbFlex: number; indexFlex: number; midFlex: num
 const currentGestureCode = ref('HAND_OPEN')
 const lastDetection      = ref<{ ch: number; pulses: number } | null>(null)
 const threshold          = ref(150)
+const frameCount         = ref(0)
 
 interface HistoryEntry { id: number; gesture: string; ch: number; pulses: number; time: string }
 const gestureHistory = ref<HistoryEntry[]>([])
@@ -255,7 +255,6 @@ const currentGestureInfo = computed(() =>
   GESTURE_META[currentGestureCode.value] ?? DEFAULT_GESTURE_INFO
 )
 
-// Pose actual — se actualiza con cada gesto
 const currentPose = reactive({ ...POSES.HAND_OPEN })
 
 function applyGesture(code: string) {
@@ -264,61 +263,82 @@ function applyGesture(code: string) {
   if (p) Object.assign(currentPose, p)
 }
 
+// ── Buffer local NO reactivo para el canvas ────────────────────────────────
+// Usamos un array plano (no Pinia, no reactive) para evitar overhead de Vue a 250Hz
+const OSC_MAX = 400
+// Cada entrada: [ch1, ch2, ch3] como amplitudes
+const oscRaw: Float32Array[] = []
+
+function oscPush(channels: { channel: number; amplitude: number }[]) {
+  const row = new Float32Array(3)
+  for (const c of channels) {
+    if (c.channel >= 1 && c.channel <= 3) row[c.channel - 1] = c.amplitude
+  }
+  if (oscRaw.length >= OSC_MAX) oscRaw.shift()
+  oscRaw.push(row)
+  frameCount.value = oscRaw.length
+}
+
 // ── Canvas osciloscópio ────────────────────────────────────────────────────
 const oscCanvas = ref<HTMLCanvasElement | null>(null)
 let   animFrame = 0
-const N_SAMPLES = 400   // ~1.6s a 250Hz
-const YMAX      = 100   // amplitud máxima esperada (µV proxy)
-
-const COLORS  = ['#2dd4bf', '#60a5fa', '#a78bfa']
-const GLOWS   = ['#2dd4bf60', '#60a5fa60', '#a78bfa60']
+let   canvasW   = 0
+let   canvasH   = 0
+const YMAX      = 100
+const COLORS    = ['#2dd4bf', '#60a5fa', '#a78bfa']
+const GLOWS     = ['#2dd4bf60', '#60a5fa60', '#a78bfa60']
 
 function drawOscilloscope() {
+  animFrame = requestAnimationFrame(drawOscilloscope)
+
   const canvas = oscCanvas.value
   if (!canvas) return
-  const ctx    = canvas.getContext('2d')
-  if (!ctx)    return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
 
-  // Ajuste resolución (HiDPI)
+  // Redimensionar solo si cambió el tamaño CSS
   const rect = canvas.getBoundingClientRect()
-  if (canvas.width !== rect.width || canvas.height !== rect.height) {
-    canvas.width  = rect.width
-    canvas.height = rect.height
+  const dpr  = window.devicePixelRatio || 1
+  const newW = Math.round(rect.width  * dpr)
+  const newH = Math.round(rect.height * dpr)
+  if (canvas.width !== newW || canvas.height !== newH) {
+    canvas.width  = newW
+    canvas.height = newH
+    canvasW = newW
+    canvasH = newH
+    ctx.scale(dpr, dpr)
   }
-  const W = canvas.width
-  const H = canvas.height
+  const W = rect.width
+  const H = rect.height
 
   // Fondo
   ctx.fillStyle = '#060e1a'
   ctx.fillRect(0, 0, W, H)
 
-  // Grid horizontal (5 líneas)
+  // Grid
   ctx.strokeStyle = 'rgba(255,255,255,0.04)'
   ctx.lineWidth   = 1
   for (let r = 1; r <= 4; r++) {
     const y = (r / 5) * H
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
   }
-  // Grid vertical (cada 0.5s aprox)
   for (let c = 1; c <= 3; c++) {
     const x = (c / 4) * W
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
   }
 
-  // Señal: 3 canales
-  const frames = emgStore.buffer.slice(-N_SAMPLES)
-  const len    = frames.length
+  const len = oscRaw.length
   if (len >= 2) {
     for (let ci = 0; ci < 3; ci++) {
-      // Brillo / glow
+      // Glow
       ctx.beginPath()
       ctx.strokeStyle = GLOWS[ci]
       ctx.lineWidth   = 4
       ctx.lineJoin    = 'round'
       for (let idx = 0; idx < len; idx++) {
-        const amp  = (frames[idx] as any).channels?.find((c: any) => c.channel === ci + 1)?.amplitude ?? 0
-        const x    = (idx / (N_SAMPLES - 1)) * W
-        const y    = H - 8 - ((Math.min(Math.abs(amp), YMAX) / YMAX) * (H - 16))
+        const amp = oscRaw[idx][ci]
+        const x   = (idx / (OSC_MAX - 1)) * W
+        const y   = H - 8 - ((Math.min(Math.abs(amp), YMAX) / YMAX) * (H - 16))
         idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
       }
       ctx.stroke()
@@ -328,13 +348,20 @@ function drawOscilloscope() {
       ctx.strokeStyle = COLORS[ci]
       ctx.lineWidth   = 1.5
       for (let idx = 0; idx < len; idx++) {
-        const amp = (frames[idx] as any).channels?.find((c: any) => c.channel === ci + 1)?.amplitude ?? 0
-        const x   = (idx / (N_SAMPLES - 1)) * W
+        const amp = oscRaw[idx][ci]
+        const x   = (idx / (OSC_MAX - 1)) * W
         const y   = H - 8 - ((Math.min(Math.abs(amp), YMAX) / YMAX) * (H - 16))
         idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
       }
       ctx.stroke()
     }
+  } else {
+    // Mensaje de espera
+    ctx.fillStyle = '#1e3a52'
+    ctx.font      = '12px monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText('Esperando señal del ESP32...', W / 2, H / 2)
+    ctx.textAlign = 'left'
   }
 
   // Línea de umbral
@@ -345,22 +372,50 @@ function drawOscilloscope() {
   ctx.lineWidth   = 1
   ctx.beginPath(); ctx.moveTo(0, threshY); ctx.lineTo(W, threshY); ctx.stroke()
   ctx.setLineDash([])
-
-  // Etiqueta umbral
   ctx.fillStyle  = '#ef444480'
   ctx.font       = '9px monospace'
   ctx.fillText(`▸ ${threshold.value}`, 4, threshY - 3)
+}
 
-  animFrame = requestAnimationFrame(drawOscilloscope)
+// ── WebSocket: escuchar mensajes directamente ──────────────────────────────
+function handleWsMessage(event: MessageEvent) {
+  try {
+    const data = JSON.parse(event.data as string)
+
+    if (data.type === 'emg_signal') {
+      oscPush(data.channels ?? [])
+      return
+    }
+
+    if (data.type === 'gesture_detected') {
+      applyGesture(data.gesture)
+      lastDetection.value = { ch: data.ch, pulses: data.pulses }
+      gestureHistory.value.unshift({
+        id:      ++historyId,
+        gesture: data.gesture,
+        ch:      data.ch,
+        pulses:  data.pulses,
+        time:    new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      })
+      if (gestureHistory.value.length > 20) gestureHistory.value.pop()
+    }
+  } catch {}
+}
+
+let _wsRef: WebSocket | null = null
+
+function attachWsListener(ws: WebSocket | null) {
+  if (_wsRef) _wsRef.removeEventListener('message', handleWsMessage)
+  _wsRef = ws
+  if (ws) ws.addEventListener('message', handleWsMessage)
 }
 
 // ── Visualización mano — SVG calculado ────────────────────────────────────
-const FINGER_BASE_Y   = 148   // top de la palma
-const FINGER_MAX_H    = 75    // altura cuando flex=0 (extendido)
-const FINGER_MIN_H    = 10    // altura cuando flex=170 (cerrado)
-const FINGER_W        = 18
+const FINGER_BASE_Y = 148
+const FINGER_MAX_H  = 75
+const FINGER_MIN_H  = 10
+const FINGER_W      = 18
 
-// Cuatro dedos: índice, medio, anular, meñique
 const fingerDisplay = computed(() => {
   const angles = [currentPose.indexFlex, currentPose.midFlex, currentPose.ringPinky, currentPose.ringPinky]
   const labels  = ['I', 'M', 'A', 'Ñ']
@@ -371,43 +426,25 @@ const fingerDisplay = computed(() => {
     const pct  = angle / 170
     const h    = FINGER_MAX_H - pct * (FINGER_MAX_H - FINGER_MIN_H)
     const topY = FINGER_BASE_Y - h
-    return {
-      x:          xs[i],
-      w:          FINGER_W,
-      topY,
-      h,
-      label:      labels[i],
-      color:      colors[i],
-      fillActive: colors[i] + '30',
-      active:     angle > 15,
-    }
+    return { x: xs[i], w: FINGER_W, topY, h, label: labels[i], color: colors[i], fillActive: colors[i] + '30', active: angle > 15 }
   })
 })
 
-// Pulgar
-const thumbH    = computed(() => {
-  const pct = currentPose.thumbFlex / 155
-  return FINGER_MAX_H - pct * (FINGER_MAX_H - FINGER_MIN_H)
-})
+const thumbH    = computed(() => { const pct = currentPose.thumbFlex / 155; return FINGER_MAX_H - pct * (FINGER_MAX_H - FINGER_MIN_H) })
 const thumbTopY = computed(() => FINGER_BASE_Y - thumbH.value)
-
-// Guía de aducción
-const thumbX1 = computed(() => 63)
-const thumbY1 = computed(() => FINGER_BASE_Y)
-const thumbX2 = computed(() => 63 - (currentPose.thumbAddu / 90) * 20)
-const thumbY2 = computed(() => FINGER_BASE_Y - 20)
-
-// Rotación muñeca (mapear 0-180 → -90 a +90 grados de rotación visual)
+const thumbX1   = computed(() => 63)
+const thumbY1   = computed(() => FINGER_BASE_Y)
+const thumbX2   = computed(() => 63 - (currentPose.thumbAddu / 90) * 20)
+const thumbY2   = computed(() => FINGER_BASE_Y - 20)
 const wristRotDeg = computed(() => (currentPose.wristRot - 90) * 0.8)
 
-// Barras de servo
 const servoDisplay = computed(() => [
-  { label: 'Flexión Pulgar',     angle: currentPose.thumbFlex,  color: '#f59e0b' },
-  { label: 'Flexión Índice',     angle: currentPose.indexFlex,  color: '#60a5fa' },
-  { label: 'Flexión Medio',      angle: currentPose.midFlex,    color: '#2dd4bf' },
-  { label: 'Anular + Meñique',   angle: currentPose.ringPinky,  color: '#a78bfa' },
-  { label: 'Aducción Pulgar',    angle: currentPose.thumbAddu,  color: '#f472b6' },
-  { label: 'Rotación Muñeca',    angle: currentPose.wristRot,   color: '#34d399' },
+  { label: 'Flexión Pulgar',   angle: currentPose.thumbFlex,  color: '#f59e0b' },
+  { label: 'Flexión Índice',   angle: currentPose.indexFlex,  color: '#60a5fa' },
+  { label: 'Flexión Medio',    angle: currentPose.midFlex,    color: '#2dd4bf' },
+  { label: 'Anular + Meñique', angle: currentPose.ringPinky,  color: '#a78bfa' },
+  { label: 'Aducción Pulgar',  angle: currentPose.thumbAddu,  color: '#f472b6' },
+  { label: 'Rotación Muñeca',  angle: currentPose.wristRot,   color: '#34d399' },
 ])
 
 // ── Calibración ────────────────────────────────────────────────────────────
@@ -416,41 +453,23 @@ function sendThreshold() {
   toast.add({ title: `Umbral: ${threshold.value}`, description: 'Enviado al ESP32', color: 'teal' })
 }
 
-// ── Escuchar mensajes del store (gesture_detected) ─────────────────────────
-// El store ya procesa emg_signal. Para gesture_detected necesitamos escuchar el WS directamente.
-function handleWsMessage(event: MessageEvent) {
-  try {
-    const data = JSON.parse(event.data)
-    if (data.type === 'gesture_detected') {
-      applyGesture(data.gesture)
-      lastDetection.value = { ch: data.ch, pulses: data.pulses }
-      gestureHistory.value.unshift({
-        id:     ++historyId,
-        gesture: data.gesture,
-        ch:     data.ch,
-        pulses:  data.pulses,
-        time:    new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      })
-      if (gestureHistory.value.length > 20) gestureHistory.value.pop()
-    }
-  } catch {}
-}
-
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(() => {
   emgStore.connect()
-  // Escuchar mensajes WS directamente para gesture_detected
-  watch(() => emgStore.ws, (ws) => {
-    if (ws) ws.addEventListener('message', handleWsMessage)
-  }, { immediate: true })
 
+  // Enganchar listener al WS actual y cuando cambie (reconexiones)
+  attachWsListener(emgStore.ws)
+  watch(() => emgStore.ws, attachWsListener)
+
+  // Arrancar RAF para el canvas
   animFrame = requestAnimationFrame(drawOscilloscope)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animFrame)
-  emgStore.ws?.removeEventListener('message', handleWsMessage)
-  emgStore.disconnect()
+  attachWsListener(null)
+  // Limpiar buffer local
+  oscRaw.length = 0
 })
 </script>
 
