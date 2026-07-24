@@ -129,8 +129,9 @@ const navSections = computed(() => [
   {
     title: 'Control',
     items: [
-      { to: '/gestures',   label: 'Gestos',     icon: 'i-heroicons-hand-raised' },
-      { to: '/prosthesis', label: 'Prótesis',   icon: 'i-heroicons-bolt' },
+      { to: '/emg-control', label: 'EMG Control',  icon: 'i-heroicons-cpu-chip',   badge: 'ESP32' },
+      { to: '/gestures',    label: 'Gestos',        icon: 'i-heroicons-hand-raised' },
+      { to: '/prosthesis',  label: 'Prótesis',      icon: 'i-heroicons-bolt' },
     ],
   },
   {

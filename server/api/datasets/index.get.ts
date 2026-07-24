@@ -6,7 +6,8 @@ export default defineEventHandler(async (event) => {
   await requireAuth(event)
   const query = getQuery(event) as Record<string, unknown>
   const { page, limit, skip } = getPaginationParams(query)
-  const { search, sortBy, sortOrder } = getSearchParams(query)
+  const { search, sortOrder } = getSearchParams(query)
+  const sortBy = String(query.sortBy || 'uploadedAt')
 
   const where = search ? { name: { contains: search } } : {}
 

@@ -90,7 +90,11 @@ export const useEMGStore = defineStore('emg', {
           if (!data.connected) this.dataSource = 'mock'
         }
       }
-      this.ws.onclose = () => { this.isConnected = false; this.isStreaming = false }
+      this.ws.onclose = () => {
+        this.isConnected = false
+        // No matar isStreaming si el mock está corriendo
+        if (_frameTimer === null) this.isStreaming = false
+      }
       this.ws.onerror = () => { this.isConnected = false }
     },
 

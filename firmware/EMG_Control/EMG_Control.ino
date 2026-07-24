@@ -156,27 +156,41 @@ void processChannel(int i, unsigned long now) {
   }
 }
 
+void notifyGesture(const char* code, int ch, int pulses) {
+  if (!wsConnected) return;
+  char buf[128];
+  snprintf(buf, sizeof(buf),
+    "{\"type\":\"gesture_detected\",\"gesture\":\"%s\",\"ch\":%d,\"pulses\":%d}",
+    code, ch, pulses);
+  ws.sendTXT(buf);
+}
+
 void onPulse(int i, int count) {
   if (millis() < manualUntil) return;
 
   Serial.printf("[EMG] CH%d  x%d\n", i + 1, count);
 
+  const char* code = nullptr;
   switch (i) {
-    case 0: // flexor
-      setGesture(count == 1 ? "HAND_CLOSE" : "FINE_PINCH");
+    case 0:
+      code = (count == 1) ? "HAND_CLOSE" : "FINE_PINCH";
       break;
-    case 1: // extensor
-      setGesture(count == 1 ? "HAND_OPEN" : "CYLINDRICAL_GRIP");
+    case 1:
+      code = (count == 1) ? "HAND_OPEN" : "CYLINDRICAL_GRIP";
       break;
-    case 2: // bíceps / muñeca
+    case 2:
       if (count == 1) {
         wristPronated = !wristPronated;
-        setGesture(wristPronated ? "PRONATION" : "SUPINATION");
+        code = wristPronated ? "PRONATION" : "SUPINATION";
       } else {
         wristFlexed = !wristFlexed;
-        setGesture(wristFlexed ? "WRIST_FLEX" : "WRIST_EXT");
+        code = wristFlexed ? "WRIST_FLEX" : "WRIST_EXT";
       }
       break;
+  }
+  if (code) {
+    setGesture(code);
+    notifyGesture(code, i + 1, count);
   }
 }
 

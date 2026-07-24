@@ -60,10 +60,11 @@
     <Transition name="fade">
       <div v-if="!isActive"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3"
-        style="background:rgba(6,14,26,0.88); height:300px;"
+        style="background:rgba(6,14,26,0.92); height:300px;"
       >
-        <UIcon name="i-heroicons-signal-slash" class="w-10 h-10 text-gray-700" />
-        <p class="text-sm text-gray-500">Conecta el ESP32 o inicia la simulación</p>
+        <UIcon name="i-heroicons-signal-slash" class="w-10 h-10 text-gray-600" />
+        <p class="text-sm text-gray-400 font-medium">Sin señal activa</p>
+        <p class="text-xs text-gray-600">Conecta el ESP32 o presiona "Iniciar simulación"</p>
       </div>
     </Transition>
   </div>

@@ -406,15 +406,13 @@ watch(() => emgStore.esp32Connected, (connected) => {
 })
 
 onMounted(() => {
-  // Conectar WS para recibir datos del ESP32 y mensajes esp32_status
-  emgStore.connect()
-
   if (emgStore.esp32Connected) {
-    // ESP32 ya estaba conectado (venía de otra página)
+    // ESP32 ya conectado (venía de otra página con WS activo)
     emgStore.startStreaming()
   } else {
-    // Sin hardware — arrancar simulación como fallback
+    // Sin hardware — mock inmediato + intentar WS en paralelo
     emgStore.startMockSimulation()
+    emgStore.connect()
   }
   startUpdates()
 })

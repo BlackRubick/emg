@@ -25,6 +25,12 @@ export default defineNitroPlugin((nitroApp) => {
             return
           }
 
+          // Gesto detectado en ESP32 → reenviar a browsers
+          if (data.type === 'gesture_detected' && peer === esp32Peer) {
+            _broadcast({ type: 'gesture_detected', gesture: data.gesture, ch: data.ch, pulses: data.pulses, timestamp: Date.now() })
+            return
+          }
+
           // Datos EMG del ESP32 → reenviar a browsers como emg_signal
           if (data.type === 'ecg_data' && peer === esp32Peer) {
             const chArr: number[] = Array.isArray(data.ch) ? data.ch : [data.env ?? 0]
