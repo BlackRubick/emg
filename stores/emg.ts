@@ -1,5 +1,16 @@
 import { defineStore } from 'pinia'
 
+// crypto.randomUUID() solo funciona en HTTPS o localhost — fallback para HTTP/IP
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 export interface EMGSample {
   channel: number
   amplitude: number
@@ -75,7 +86,7 @@ export const useEMGStore = defineStore('emg', {
       if (this.ws?.readyState === WebSocket.OPEN) return
       const wsUrl = useRuntimeConfig().public.wsUrl
       this.ws = new WebSocket(`${wsUrl}/_ws`)
-      this.ws.onopen  = () => { this.isConnected = true; this.sessionId = crypto.randomUUID() }
+      this.ws.onopen  = () => { this.isConnected = true; this.sessionId = uuid() }
       this.ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
         if (data.type === 'emg_signal') {
@@ -122,7 +133,7 @@ export const useEMGStore = defineStore('emg', {
 
       this.isConnected    = true
       this.isStreaming     = true
-      this.sessionId      = crypto.randomUUID()
+      this.sessionId      = uuid()
       this.buffer         = []
       this.currentGesture = { gesture: MOCK_GESTURES[0], confidence: 0.94 }
 
