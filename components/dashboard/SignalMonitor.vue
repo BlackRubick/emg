@@ -63,7 +63,7 @@
         style="background:rgba(6,14,26,0.88); height:300px;"
       >
         <UIcon name="i-heroicons-signal-slash" class="w-10 h-10 text-gray-700" />
-        <p class="text-sm text-gray-500">Inicia la simulación para ver la señal EMG</p>
+        <p class="text-sm text-gray-500">Conecta el ESP32 o inicia la simulación</p>
       </div>
     </Transition>
   </div>

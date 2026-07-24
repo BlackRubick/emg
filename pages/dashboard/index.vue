@@ -24,8 +24,13 @@
           </span>
         </div>
 
-        <!-- Botón de simulación -->
+        <!-- Badge ESP32 / botón simulación -->
+        <div v-if="emgStore.esp32Connected" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border bg-teal-950/60 border-teal-800/60 text-teal-300">
+          <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+          ESP32 · Señal en vivo
+        </div>
         <button
+          v-else
           class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border"
           :class="emgStore.isStreaming
             ? 'bg-red-950/60 border-red-800/60 text-red-300 hover:bg-red-900/40'
@@ -66,7 +71,9 @@
             </div>
             <div>
               <h3 class="text-sm font-semibold text-white">Monitor EMG en Tiempo Real</h3>
-              <p class="text-xs text-gray-500">8 canales · 2000 Hz · NinaPro DB5</p>
+              <p class="text-xs text-gray-500">
+                {{ emgStore.esp32Connected ? '3 canales · 250 Hz · ESP32-S3' : '8 canales · 2000 Hz · Simulación' }}
+              </p>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -80,7 +87,7 @@
         </div>
         <!-- El monitor SVG reactivo -->
         <div class="p-3">
-          <SignalMonitor :is-active="emgStore.isStreaming" />
+          <SignalMonitor :is-active="emgStore.isStreaming || emgStore.esp32Connected" />
         </div>
       </div>
 
@@ -380,12 +387,43 @@ watch(() => emgStore.currentGesture, (g) => {
 })
 
 function toggleMock() {
+  if (emgStore.esp32Connected) return
   if (emgStore.isStreaming) { emgStore.stopMockSimulation(); stopUpdates() }
   else                      { emgStore.startMockSimulation(); startUpdates() }
 }
 
-onMounted(() => { emgStore.startMockSimulation(); startUpdates() })
-onUnmounted(() => { emgStore.stopMockSimulation(); stopUpdates() })
+// Cuando el ESP32 se conecta en caliente, detiene el mock y usa señal real
+watch(() => emgStore.esp32Connected, (connected) => {
+  if (connected) {
+    emgStore.stopMockSimulation()
+    emgStore.startStreaming()
+  } else {
+    // ESP32 se desconectó — volver a simulación
+    emgStore.stopStreaming()
+    emgStore.startMockSimulation()
+    startUpdates()
+  }
+})
+
+onMounted(() => {
+  // Conectar WS para recibir datos del ESP32 y mensajes esp32_status
+  emgStore.connect()
+
+  if (emgStore.esp32Connected) {
+    // ESP32 ya estaba conectado (venía de otra página)
+    emgStore.startStreaming()
+  } else {
+    // Sin hardware — arrancar simulación como fallback
+    emgStore.startMockSimulation()
+  }
+  startUpdates()
+})
+
+onUnmounted(() => {
+  emgStore.stopMockSimulation()
+  emgStore.disconnect()
+  stopUpdates()
+})
 </script>
 
 <style scoped>
