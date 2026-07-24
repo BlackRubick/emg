@@ -1,5 +1,9 @@
 export default defineNuxtConfig({
+  compatibilityDate: '2026-07-23',
   devtools: { enabled: true },
+  experimental: {
+    appManifest: false,
+  },
   modules: [
     '@nuxt/ui',
     '@pinia/nuxt',
