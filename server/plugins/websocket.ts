@@ -8,6 +8,10 @@ export default defineNitroPlugin((nitroApp) => {
       open(peer) {
         browserPeers.add(peer)
         peer.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }))
+        // Si el ESP32 ya estaba conectado cuando este browser llegó, avisarle inmediatamente
+        if (esp32Peer !== null) {
+          peer.send(JSON.stringify({ type: 'esp32_status', connected: true, timestamp: Date.now() }))
+        }
       },
 
       message(peer, message) {
@@ -54,6 +58,12 @@ export default defineNitroPlugin((nitroApp) => {
           // Ping desde browser
           if (data.type === 'ping') {
             peer.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }))
+            return
+          }
+
+          // Browser pide estado actual del ESP32
+          if (data.type === 'get_status') {
+            peer.send(JSON.stringify({ type: 'esp32_status', connected: esp32Peer !== null, timestamp: Date.now() }))
             return
           }
 

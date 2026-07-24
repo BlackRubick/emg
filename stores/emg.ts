@@ -88,7 +88,12 @@ export const useEMGStore = defineStore('emg', {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const wsUrl = `${protocol}//${window.location.host}`
       this.ws = new WebSocket(`${wsUrl}/_ws`)
-      this.ws.onopen  = () => { this.isConnected = true; this.sessionId = uuid() }
+      this.ws.onopen  = () => {
+        this.isConnected = true
+        this.sessionId = uuid()
+        // Pedir estado actual del ESP32 en cuanto conecta el browser
+        this.ws!.send(JSON.stringify({ type: 'get_status' }))
+      }
       this.ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
         if (data.type === 'emg_signal') {
