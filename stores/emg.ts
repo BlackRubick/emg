@@ -84,7 +84,9 @@ export const useEMGStore = defineStore('emg', {
   actions: {
     connect() {
       if (this.ws?.readyState === WebSocket.OPEN) return
-      const wsUrl = useRuntimeConfig().public.wsUrl
+      // Usar el host actual para que funcione tanto en localhost como por IP
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//${window.location.host}`
       this.ws = new WebSocket(`${wsUrl}/_ws`)
       this.ws.onopen  = () => { this.isConnected = true; this.sessionId = uuid() }
       this.ws.onmessage = (event) => {
