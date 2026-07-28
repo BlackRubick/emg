@@ -18,6 +18,7 @@ const char* nombres[5] = {"Servo1", "Servo2", "Servo3", "Servo4", "Servo5"};
 // Posiciones actuales — mapeo directo a los campos de currentPose en la web
 // índice:  0=thumbFlex  1=indexFlex  2=midFlex  3=ringPinky  4=thumbAddu
 int posActual[5] = {0, 0, 0, 0, 90};
+int servoActual  = 0;  // índice del servo que se está probando ahora
 
 WebSocketsClient ws;
 bool wsConnected = false;
@@ -44,10 +45,21 @@ void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   }
 }
 
-// WebSocket corre en Core 0 para no interferir con los delay() originales
+// WebSocket + stream de señal — corre en Core 0 para no interferir con delay()
 void wsTask(void* param) {
+  unsigned long lastSend = 0;
   while (true) {
     ws.loop();
+    unsigned long now = millis();
+    // Envía el ángulo del servo activo como señal al osciloscópio (~250 Hz)
+    // Server divide env/10 y YMAX=100 → multiplicamos x5 para ocupar 0-90% del canvas
+    if (wsConnected && now - lastSend >= 4) {
+      lastSend = now;
+      int amp = posActual[servoActual] * 5;
+      char buf[80];
+      snprintf(buf, sizeof(buf), "{\"type\":\"ecg_data\",\"t\":%lu,\"ch\":[%d]}", now, amp);
+      ws.sendTXT(buf);
+    }
     delay(2);
   }
 }
@@ -77,6 +89,7 @@ void setup() {
 
 void loop() {
   for (int i = 0; i < 5; i++) {
+    servoActual = i;
     Serial.print(">>> Probando SOLO ");
     Serial.print(nombres[i]);
     Serial.print(" (GPIO ");
