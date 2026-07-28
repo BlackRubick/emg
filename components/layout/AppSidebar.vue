@@ -104,45 +104,17 @@ const isActive = (path: string) =>
 
 const navSections = computed(() => [
   {
-    title: 'Principal',
-    items: [
-      { to: '/dashboard',  label: 'Dashboard',   icon: 'i-heroicons-squares-2x2' },
-    ],
-  },
-  {
-    title: 'Biomédico',
-    items: [
-      { to: '/subjects',   label: 'Sujetos',          icon: 'i-heroicons-user-group' },
-      { to: '/sensors',    label: 'Sensores EMG',     icon: 'i-heroicons-cpu-chip' },
-      { to: '/channels',   label: 'Canales EMG',      icon: 'i-heroicons-signal' },
-      { to: '/datasets',   label: 'Dataset NinaPro',  icon: 'i-heroicons-folder-open' },
-    ],
-  },
-  {
-    title: 'Análisis',
-    items: [
-      { to: '/signals',    label: 'Señales EMG',       icon: 'i-heroicons-chart-bar-square' },
-      { to: '/features',   label: 'Características',   icon: 'i-heroicons-variable' },
-      { to: '/models',     label: 'Modelos LDA',       icon: 'i-heroicons-cog-6-tooth' },
-    ],
-  },
-  {
     title: 'Control',
     items: [
-      { to: '/emg-control', label: 'EMG Control',  icon: 'i-heroicons-cpu-chip',   badge: 'ESP32' },
-      { to: '/gestures',    label: 'Gestos',        icon: 'i-heroicons-hand-raised' },
-      { to: '/prosthesis',  label: 'Prótesis',      icon: 'i-heroicons-bolt' },
+      { to: '/emg-control', label: 'EMG Control', icon: 'i-heroicons-cpu-chip', badge: 'ESP32' },
+      { to: '/patients',    label: 'Pacientes',   icon: 'i-heroicons-user-group' },
     ],
   },
-  {
+  ...(authStore.isAdmin ? [{
     title: 'Sistema',
     items: [
-      { to: '/reports',    label: 'Reportes',   icon: 'i-heroicons-document-chart-bar' },
-      { to: '/audit',      label: 'Auditoría',  icon: 'i-heroicons-shield-check' },
-      ...(authStore.isAdmin
-        ? [{ to: '/users', label: 'Usuarios', icon: 'i-heroicons-users' }]
-        : []),
+      { to: '/users', label: 'Usuarios', icon: 'i-heroicons-users' },
     ],
-  },
+  }] : []),
 ])
 </script>

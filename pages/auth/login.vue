@@ -114,7 +114,8 @@ const onSubmit = async () => {
   loading.value = true
   try {
     await authStore.login(form.email, form.password)
-    await router.push('/dashboard')
+    const redirect = useRoute().query.redirect as string
+    await router.push(redirect || '/emg-control')
   } catch (e: any) {
     error.value = e?.data?.message || 'Credenciales inválidas'
   } finally {

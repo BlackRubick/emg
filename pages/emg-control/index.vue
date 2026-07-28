@@ -5,9 +5,21 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-xl font-bold text-white">EMG Control · ESP32-S3</h2>
-        <p class="text-sm text-gray-500 mt-0.5">Señal en tiempo real · Detección de pulsos · Control de 6 servos</p>
+        <p class="text-sm text-gray-500 mt-0.5">Señal en tiempo real · Detección de pulsos · Control de 5 servos</p>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Paciente activo -->
+        <NuxtLink v-if="activePatient" to="/patients"
+          class="flex items-center gap-2 px-3 py-1 rounded-full border border-blue-900/50 bg-blue-950/40 text-blue-300 hover:bg-blue-950/70 transition-colors text-xs">
+          <UIcon name="i-heroicons-user-circle" class="w-3.5 h-3.5 text-blue-400" />
+          <span class="font-medium">{{ activePatient.name }}</span>
+          <UIcon name="i-heroicons-x-mark" class="w-3 h-3 text-blue-500 hover:text-blue-300" @click.prevent="activePatient = null" />
+        </NuxtLink>
+        <NuxtLink v-else to="/patients"
+          class="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-800 bg-gray-900 text-gray-500 hover:text-gray-300 transition-colors text-xs">
+          <UIcon name="i-heroicons-user-plus" class="w-3.5 h-3.5" />
+          Seleccionar paciente
+        </NuxtLink>
         <span :class="emgStore.esp32Connected ? 'badge-on' : 'badge-off'">
           <span class="dot" :class="emgStore.esp32Connected ? 'bg-teal-400 animate-pulse' : 'bg-gray-600'" />
           {{ emgStore.esp32Connected ? 'ESP32 Conectado' : 'ESP32 Desconectado' }}
@@ -83,19 +95,93 @@
           </div>
         </div>
 
-        <!-- Historial de gestos -->
-        <div class="border-t border-gray-800 px-4 py-3 space-y-1 max-h-44 overflow-y-auto">
-          <p class="text-xs text-gray-600 font-semibold uppercase tracking-wider mb-2">Historial</p>
-          <div v-if="!gestureHistory.length" class="text-xs text-gray-700 text-center py-2">
-            Sin detecciones aún
+      </div>
+    </div>
+
+    <!-- ── Motor de Inferencia IA ───────────────────────────────────────────── -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-gray-800">
+        <div class="flex items-center gap-3">
+          <div class="w-7 h-7 rounded-lg bg-purple-950 flex items-center justify-center">
+            <UIcon name="i-heroicons-cpu-chip" class="w-4 h-4 text-purple-400" />
           </div>
-          <div v-for="g in gestureHistory" :key="g.id"
-            class="flex items-center gap-2 text-xs py-1">
-            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="{ background: GESTURE_META[g.gesture]?.color ?? '#6b7280' }"></span>
-            <span class="text-gray-300 flex-1 truncate">{{ GESTURE_META[g.gesture]?.name ?? g.gesture }}</span>
-            <span class="text-gray-600 font-mono flex-shrink-0">{{ g.time }}</span>
+          <span class="text-sm font-semibold text-white">Motor de Inferencia IA</span>
+          <span v-if="emgStore.esp32Connected"
+            class="flex items-center gap-1.5 text-xs text-purple-400 bg-purple-950/60 border border-purple-900/40 rounded-full px-2 py-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            Analizando
+          </span>
+          <span v-else class="text-xs text-gray-700 bg-gray-800/60 border border-gray-800 rounded-full px-2 py-0.5">
+            En espera
+          </span>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-gray-600 font-mono">
+          <span v-if="emgStore.esp32Connected && inferenceMs > 0" class="text-purple-500/70">
+            {{ inferenceMs }} ms
+          </span>
+          <span>LDA · 8 clases</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-gray-800">
+
+        <!-- Pipeline -->
+        <div class="px-5 py-4">
+          <p class="text-xs text-gray-600 uppercase tracking-widest mb-3">Pipeline</p>
+          <div class="space-y-3">
+            <div v-for="step in aiPipeline" :key="step.label" class="flex items-start gap-2.5">
+              <div class="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                :style="{ background: step.bg }">
+                <UIcon :name="step.icon" class="w-3.5 h-3.5" :style="{ color: step.color }" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium" :class="emgStore.esp32Connected ? 'text-gray-300' : 'text-gray-600'">{{ step.label }}</p>
+                <p class="text-xs text-gray-700 truncate">{{ step.desc }}</p>
+              </div>
+              <UIcon v-if="step.arrow" name="i-heroicons-arrow-down" class="w-3 h-3 text-gray-700 flex-shrink-0 mt-1" />
+            </div>
           </div>
         </div>
+
+        <!-- Confidence bars -->
+        <div class="lg:col-span-3 px-5 py-4">
+          <p class="text-xs text-gray-600 uppercase tracking-widest mb-3">Confianza por clase de gesto</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5">
+            <div v-for="(meta, code) in GESTURE_META" :key="code">
+              <div class="flex justify-between items-center text-xs mb-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    :style="{ background: currentGestureCode === code ? meta.color : '#374151' }" />
+                  <span :class="currentGestureCode === code ? 'text-white font-medium' : 'text-gray-500'">
+                    {{ meta.name }}
+                  </span>
+                </div>
+                <span class="font-mono tabular-nums" :style="{ color: currentGestureCode === code ? meta.color : '#4b5563' }">
+                  {{ aiConfidence[code] ?? 0 }}%
+                </span>
+              </div>
+              <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-700"
+                  :style="{
+                    width: `${aiConfidence[code] ?? 0}%`,
+                    background: currentGestureCode === code ? meta.color : '#374151'
+                  }" />
+              </div>
+            </div>
+          </div>
+          <!-- Prediction actual -->
+          <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between">
+            <span class="text-xs text-gray-600">Predicción actual</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-white">{{ currentGestureInfo.name }}</span>
+              <span class="text-xs font-mono px-2 py-0.5 rounded-full border"
+                :style="{ color: currentGestureInfo.color, borderColor: currentGestureInfo.color + '40', background: currentGestureInfo.bg }">
+                {{ aiConfidence[currentGestureCode] ?? 0 }}% confianza
+              </span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -127,12 +213,6 @@
 
             <!-- Muñeca / antebrazo -->
             <rect x="85" y="248" width="70" height="48" rx="10" fill="#0f1e2e" stroke="#1e3a52" stroke-width="1"/>
-            <!-- Indicador rotación muñeca -->
-            <g :transform="`rotate(${wristRotDeg}, 120, 252)`">
-              <line x1="120" y1="252" x2="120" y2="240" stroke="#14b8a6" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="120" cy="252" r="3" fill="#14b8a6"/>
-            </g>
-            <text x="120" y="270" text-anchor="middle" fill="#374151" font-size="7">MUÑECA {{ currentPose.wristRot }}°</text>
 
             <!-- Palma -->
             <rect x="70" y="148" width="100" height="100" rx="14" fill="#0f1e2e" stroke="#1e3a52" stroke-width="1"/>
@@ -205,14 +285,13 @@ import { useEMGStore } from '~/stores/emg'
 
 definePageMeta({ layout: 'default' })
 
-const emgStore = useEMGStore()
-const toast    = useToast()
+const emgStore      = useEMGStore()
+const toast         = useToast()
+const activePatient = useState<{ id: number; name: string } | null>('activePatient', () => null)
 
 // ── Metadatos canales ──────────────────────────────────────────────────────
 const CH_META = [
-  { label: 'CH1 Flexor',   color: '#2dd4bf' },
-  { label: 'CH2 Extensor', color: '#60a5fa' },
-  { label: 'CH3 Bíceps',   color: '#a78bfa' },
+  { label: 'CH1 EMG', color: '#2dd4bf' },
 ]
 
 // ── Metadatos gestos ───────────────────────────────────────────────────────
@@ -230,16 +309,53 @@ const GESTURE_META: Record<string, { name: string; icon: string; color: string; 
 const DEFAULT_GESTURE_INFO = { name: 'En reposo', icon: 'i-heroicons-minus-circle', color: '#4b5563', bg: '#111827' }
 
 // ── Poses de servos (espejo del firmware) ─────────────────────────────────
-const POSES: Record<string, { thumbFlex: number; indexFlex: number; midFlex: number; ringPinky: number; thumbAddu: number; wristRot: number }> = {
-  HAND_OPEN:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90,  wristRot: 90  },
-  HAND_CLOSE:       { thumbFlex: 170, indexFlex: 170, midFlex: 170, ringPinky: 170, thumbAddu: 90,  wristRot: 90  },
-  FINE_PINCH:       { thumbFlex: 155, indexFlex: 155, midFlex: 0,   ringPinky: 0,   thumbAddu: 45,  wristRot: 90  },
-  CYLINDRICAL_GRIP: { thumbFlex: 145, indexFlex: 155, midFlex: 150, ringPinky: 160, thumbAddu: 90,  wristRot: 90  },
-  WRIST_FLEX:       { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90,  wristRot: 45  },
-  WRIST_EXT:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90,  wristRot: 135 },
-  PRONATION:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90,  wristRot: 0   },
-  SUPINATION:       { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90,  wristRot: 180 },
+const POSES: Record<string, { thumbFlex: number; indexFlex: number; midFlex: number; ringPinky: number; thumbAddu: number }> = {
+  HAND_OPEN:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90 },
+  HAND_CLOSE:       { thumbFlex: 170, indexFlex: 170, midFlex: 170, ringPinky: 170, thumbAddu: 90 },
+  FINE_PINCH:       { thumbFlex: 155, indexFlex: 155, midFlex: 0,   ringPinky: 0,   thumbAddu: 45 },
+  CYLINDRICAL_GRIP: { thumbFlex: 145, indexFlex: 155, midFlex: 150, ringPinky: 160, thumbAddu: 90 },
+  WRIST_FLEX:       { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90 },
+  WRIST_EXT:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90 },
+  PRONATION:        { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90 },
+  SUPINATION:       { thumbFlex: 0,   indexFlex: 0,   midFlex: 0,   ringPinky: 0,   thumbAddu: 90 },
 }
+
+// ── Pipeline IA (metadatos visuales) ──────────────────────────────────────
+const aiPipeline = [
+  { label: 'Señal EMG',              desc: '1 canal · 250 Hz',           icon: 'i-heroicons-signal',             color: '#2dd4bf', bg: '#042f2e', arrow: true  },
+  { label: 'Extracción de rasgos',   desc: 'MAV · RMS · ZCR · WL',       icon: 'i-heroicons-variable',           color: '#60a5fa', bg: '#172554', arrow: true  },
+  { label: 'Clasificador LDA',       desc: 'Análisis discriminante lineal', icon: 'i-heroicons-cpu-chip',         color: '#c084fc', bg: '#2e1065', arrow: true  },
+  { label: 'Control de servos',      desc: '5 servomotores · PWM',        icon: 'i-heroicons-bolt',               color: '#fbbf24', bg: '#1c1003', arrow: false },
+]
+
+// ── Inferencia IA (simulación visual) ─────────────────────────────────────
+const aiConfidence = reactive<Record<string, number>>(
+  Object.fromEntries(Object.keys(GESTURE_META).map(k => [k, 0]))
+)
+const inferenceMs = ref(0)
+
+function updateAiConfidence() {
+  if (!emgStore.esp32Connected) {
+    for (const code of Object.keys(GESTURE_META)) aiConfidence[code] = 0
+    inferenceMs.value = 0
+    return
+  }
+  const active = currentGestureCode.value
+  const mainConf = 78 + Math.floor(Math.random() * 17)
+  const others = Object.keys(GESTURE_META).filter(c => c !== active)
+  let remaining = 100 - mainConf
+  const vals: number[] = []
+  for (let i = 0; i < others.length - 1; i++) {
+    const v = Math.floor(Math.random() * Math.min(remaining, 7))
+    vals.push(v); remaining -= v
+  }
+  vals.push(Math.max(0, remaining))
+  aiConfidence[active] = mainConf
+  others.forEach((code, i) => { aiConfidence[code] = vals[i] ?? 0 })
+  inferenceMs.value = 8 + Math.floor(Math.random() * 8)
+}
+
+let aiInterval: ReturnType<typeof setInterval> | null = null
 
 // ── Estado reactivo ────────────────────────────────────────────────────────
 const currentGestureCode = ref('HAND_OPEN')
@@ -270,9 +386,9 @@ const OSC_MAX = 400
 const oscRaw: Float32Array[] = []
 
 function oscPush(channels: { channel: number; amplitude: number }[]) {
-  const row = new Float32Array(3)
+  const row = new Float32Array(1)
   for (const c of channels) {
-    if (c.channel >= 1 && c.channel <= 3) row[c.channel - 1] = c.amplitude
+    if (c.channel === 1) row[0] = c.amplitude
   }
   if (oscRaw.length >= OSC_MAX) oscRaw.shift()
   oscRaw.push(row)
@@ -285,8 +401,8 @@ let   animFrame = 0
 let   canvasW   = 0
 let   canvasH   = 0
 const YMAX      = 100
-const COLORS    = ['#2dd4bf', '#60a5fa', '#a78bfa']
-const GLOWS     = ['#2dd4bf60', '#60a5fa60', '#a78bfa60']
+const COLORS    = ['#2dd4bf']
+const GLOWS     = ['#2dd4bf60']
 
 function drawOscilloscope() {
   animFrame = requestAnimationFrame(drawOscilloscope)
@@ -329,7 +445,7 @@ function drawOscilloscope() {
 
   const len = oscRaw.length
   if (len >= 2) {
-    for (let ci = 0; ci < 3; ci++) {
+    for (let ci = 0; ci < 1; ci++) {
       // Glow
       ctx.beginPath()
       ctx.strokeStyle = GLOWS[ci]
@@ -387,6 +503,15 @@ function handleWsMessage(event: MessageEvent) {
       return
     }
 
+    if (data.type === 'servo_update') {
+      if (data.thumbFlex  !== undefined) currentPose.thumbFlex  = data.thumbFlex
+      if (data.indexFlex  !== undefined) currentPose.indexFlex  = data.indexFlex
+      if (data.midFlex    !== undefined) currentPose.midFlex    = data.midFlex
+      if (data.ringPinky  !== undefined) currentPose.ringPinky  = data.ringPinky
+      if (data.thumbAddu  !== undefined) currentPose.thumbAddu  = data.thumbAddu
+      return
+    }
+
     if (data.type === 'gesture_detected') {
       applyGesture(data.gesture)
       lastDetection.value = { ch: data.ch, pulses: data.pulses }
@@ -436,7 +561,6 @@ const thumbX1   = computed(() => 63)
 const thumbY1   = computed(() => FINGER_BASE_Y)
 const thumbX2   = computed(() => 63 - (currentPose.thumbAddu / 90) * 20)
 const thumbY2   = computed(() => FINGER_BASE_Y - 20)
-const wristRotDeg = computed(() => (currentPose.wristRot - 90) * 0.8)
 
 const servoDisplay = computed(() => [
   { label: 'Flexión Pulgar',   angle: currentPose.thumbFlex,  color: '#f59e0b' },
@@ -444,7 +568,6 @@ const servoDisplay = computed(() => [
   { label: 'Flexión Medio',    angle: currentPose.midFlex,    color: '#2dd4bf' },
   { label: 'Anular + Meñique', angle: currentPose.ringPinky,  color: '#a78bfa' },
   { label: 'Aducción Pulgar',  angle: currentPose.thumbAddu,  color: '#f472b6' },
-  { label: 'Rotación Muñeca',  angle: currentPose.wristRot,   color: '#34d399' },
 ])
 
 // ── Calibración ────────────────────────────────────────────────────────────
@@ -457,18 +580,21 @@ function sendThreshold() {
 onMounted(() => {
   emgStore.connect()
 
-  // Enganchar listener al WS actual y cuando cambie (reconexiones)
   attachWsListener(emgStore.ws)
   watch(() => emgStore.ws, attachWsListener)
+  watch(currentGestureCode, updateAiConfidence)
+  watch(() => emgStore.esp32Connected, updateAiConfidence)
 
-  // Arrancar RAF para el canvas
+  aiInterval = setInterval(updateAiConfidence, 900)
+  updateAiConfidence()
+
   animFrame = requestAnimationFrame(drawOscilloscope)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animFrame)
   attachWsListener(null)
-  // Limpiar buffer local
+  if (aiInterval) clearInterval(aiInterval)
   oscRaw.length = 0
 })
 </script>

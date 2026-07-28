@@ -4,5 +4,5 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: false })
-await navigateTo('/dashboard', { replace: true })
+await navigateTo('/emg-control', { replace: true })
 </script>

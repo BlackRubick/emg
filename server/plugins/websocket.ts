@@ -29,6 +29,12 @@ export default defineNitroPlugin((nitroApp) => {
             return
           }
 
+          // Posiciones de servo desde prueba de test → reenviar a browsers
+          if (data.type === 'servo_update' && peer === esp32Peer) {
+            _broadcast({ type: 'servo_update', ...data, timestamp: Date.now() })
+            return
+          }
+
           // Gesto detectado en ESP32 → reenviar a browsers
           if (data.type === 'gesture_detected' && peer === esp32Peer) {
             _broadcast({ type: 'gesture_detected', gesture: data.gesture, ch: data.ch, pulses: data.pulses, timestamp: Date.now() })
