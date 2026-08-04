@@ -41,6 +41,12 @@ export default defineNitroPlugin((nitroApp) => {
             return
           }
 
+          // Calibración MVC → reenviar a browsers
+          if ((data.type === 'cal_status' || data.type === 'cal_complete') && peer === esp32Peer) {
+            _broadcast({ ...data, timestamp: Date.now() })
+            return
+          }
+
           // Datos EMG del ESP32 → reenviar a browsers como emg_signal
           if (data.type === 'ecg_data' && peer === esp32Peer) {
             const chArr: number[] = Array.isArray(data.ch) ? data.ch : [data.env ?? 0]
